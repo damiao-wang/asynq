@@ -53,6 +53,9 @@ const (
 	TaskStateAggregating // describes a state where task is waiting in a group to be aggregated
 )
 
+// 状态流转
+// pending -> active -失败-> retry
+
 func (s TaskState) String() string {
 	switch s {
 	case TaskStateActive:
@@ -266,14 +269,17 @@ type TaskMessage struct {
 	// if retry count is remaining. Otherwise it will be moved to the archive.
 	//
 	// Use zero to indicate no timeout.
+	// 任务的超时时间
 	Timeout int64
 
 	// Deadline specifies the deadline for the task in Unix time,
 	// the number of seconds elapsed since January 1, 1970 UTC.
 	// If task processing doesn't complete before the deadline, the task will be retried
 	// if retry count is remaining. Otherwise it will be moved to the archive.
+	// 如果retry还有计数，任务将被重试
 	//
 	// Use zero to indicate no deadline.
+	// 任务的deadline时间戳
 	Deadline int64
 
 	// UniqueKey holds the redis key used for uniqueness lock for this task.

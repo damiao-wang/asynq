@@ -121,6 +121,7 @@ type Config struct {
 	// queues and values are associated priority value.
 	//
 	// If set to nil or not specified, the server will process only the "default" queue.
+	// 如果没有指定，则server只会处理"default"队列
 	//
 	// Priority is treated as follows to avoid starving low priority queues.
 	//
@@ -135,6 +136,7 @@ type Config struct {
 	// With the above config and given that all queues are not empty, the tasks
 	// in "critical", "default", "low" should be processed 60%, 30%, 10% of
 	// the time respectively.
+	// 值越大 优先级越高
 	//
 	// If a queue has a zero or negative priority value, the queue will be ignored.
 	Queues map[string]int

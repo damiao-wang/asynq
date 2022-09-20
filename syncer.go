@@ -73,7 +73,7 @@ func (s *syncer) start(wg *sync.WaitGroup) {
 			case <-time.After(s.interval):
 				var temp []*syncRequest
 				for _, req := range requests {
-					if req.deadline.Before(time.Now()) {
+					if req.deadline.Before(time.Now()) { // deadline < now
 						continue // drop stale request
 					}
 					if err := req.fn(); err != nil {

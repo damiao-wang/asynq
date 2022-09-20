@@ -74,6 +74,8 @@ func (mux *ServeMux) Handler(t *Task) (h Handler, pattern string) {
 
 // Find a handler on a handler map given a typename string.
 // Most-specific (longest) pattern wins.
+// 1. 完全匹配
+// 2. 前缀匹配(前缀由长到短)
 func (mux *ServeMux) match(typename string) (h Handler, pattern string) {
 	// Check for exact match first.
 	v, ok := mux.m[typename]
@@ -113,17 +115,18 @@ func (mux *ServeMux) Handle(pattern string, handler Handler) {
 	}
 	e := muxEntry{h: handler, pattern: pattern}
 	mux.m[pattern] = e
-	mux.es = appendSorted(mux.es, e)
+	mux.es = appendSorted(mux.es, e) // 长度降序
 }
 
 func appendSorted(es []muxEntry, e muxEntry) []muxEntry {
 	n := len(es)
-	i := sort.Search(n, func(i int) bool {
+	i := sort.Search(n, func(i int) bool { // 二分查找第一个pattern长度小于当前pattern的位置，进行插入
 		return len(es[i].pattern) < len(e.pattern)
 	})
 	if i == n {
 		return append(es, e)
 	}
+	// 插入到位置i
 	// we now know that i points at where we want to insert.
 	es = append(es, muxEntry{}) // try to grow the slice in place, any entry works.
 	copy(es[i+1:], es[i:])      // shift shorter entries down.

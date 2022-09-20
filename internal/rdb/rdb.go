@@ -233,6 +233,7 @@ return nil`)
 // off a queue if one exists and returns the message and its lease expiration time.
 // Dequeue skips a queue if the queue is paused.
 // If all queues are empty, ErrNoProcessableTask error is returned.
+// 任务出队 leaseExpirationTime 干啥用呢？
 func (r *RDB) Dequeue(qnames ...string) (msg *base.TaskMessage, leaseExpirationTime time.Time, err error) {
 	var op errors.Op = "rdb.Dequeue"
 	for _, qname := range qnames {
@@ -734,12 +735,12 @@ func (r *RDB) ScheduleUnique(ctx context.Context, msg *base.TaskMessage, process
 	return nil
 }
 
-// KEYS[1] -> asynq:{<qname>}:t:<task_id>
+// KEYS[1] -> asynq:{<qname>}:t:<task_id> 任务被修改了
 // KEYS[2] -> asynq:{<qname>}:active
 // KEYS[3] -> asynq:{<qname>}:lease
 // KEYS[4] -> asynq:{<qname>}:retry
-// KEYS[5] -> asynq:{<qname>}:processed:<yyyy-mm-dd>
-// KEYS[6] -> asynq:{<qname>}:failed:<yyyy-mm-dd>
+// KEYS[5] -> asynq:{<qname>}:processed:<yyyy-mm-dd> 当天数据保留90天
+// KEYS[6] -> asynq:{<qname>}:failed:<yyyy-mm-dd> 当天数据保留90天
 // KEYS[7] -> asynq:{<qname>}:processed
 // KEYS[8] -> asynq:{<qname>}:failed
 // -------
@@ -784,7 +785,7 @@ return redis.status_reply("OK")`)
 func (r *RDB) Retry(ctx context.Context, msg *base.TaskMessage, processAt time.Time, errMsg string, isFailure bool) error {
 	var op errors.Op = "rdb.Retry"
 	now := r.clock.Now()
-	modified := *msg
+	modified := *msg // copy
 	if isFailure {
 		modified.Retried++
 	}

@@ -52,7 +52,7 @@ type processor struct {
 
 	// sema is a counting semaphore to ensure the number of active workers
 	// does not exceed the limit.
-	sema chan struct{}
+	sema chan struct{} // 计数信号量
 
 	// channel to communicate back to the long running "processor" goroutine.
 	// once is used to send value to the channel only once.
@@ -76,7 +76,7 @@ type processorParams struct {
 	logger          *log.Logger
 	broker          base.Broker
 	baseCtxFn       func() context.Context
-	retryDelayFunc  RetryDelayFunc
+	retryDelayFunc  RetryDelayFunc // 默认是指数级回退策略
 	isFailureFunc   func(error) bool
 	syncCh          chan<- *syncRequest
 	cancelations    *base.Cancelations
@@ -171,7 +171,7 @@ func (p *processor) exec() {
 		return
 	case p.sema <- struct{}{}: // acquire token
 		qnames := p.queues()
-		msg, leaseExpirationTime, err := p.broker.Dequeue(qnames...)
+		msg, leaseExpirationTime, err := p.broker.Dequeue(qnames...) // leaseExpirationTime有点操蛋，不能设置，默认30s
 		switch {
 		case errors.Is(err, errors.ErrNoProcessableTask):
 			p.logger.Debug("All queues are empty")
@@ -321,6 +321,7 @@ func (p *processor) markAsDone(l *base.Lease, msg *base.TaskMessage) {
 // the task should not be retried and should be archived instead.
 var SkipRetry = errors.New("skip retry for the task")
 
+// 重试 或 归档
 func (p *processor) handleFailedMessage(ctx context.Context, l *base.Lease, msg *base.TaskMessage, err error) {
 	if p.errHandler != nil {
 		p.errHandler.HandleError(ctx, NewTask(msg.Type, msg.Payload), err)
@@ -338,8 +339,10 @@ func (p *processor) handleFailedMessage(ctx context.Context, l *base.Lease, msg 
 	}
 }
 
+// 1.如果lease过期，就不再执行retry
+// 2.delay指数级backoff
 func (p *processor) retry(l *base.Lease, msg *base.TaskMessage, e error, isFailure bool) {
-	if !l.IsValid() {
+	if !l.IsValid() { // lease过期 不再retry
 		// If lease is not valid, do not write to redis; Let recoverer take care of it.
 		return
 	}
@@ -383,6 +386,7 @@ func (p *processor) archive(l *base.Lease, msg *base.TaskMessage, e error) {
 // queues returns a list of queues to query.
 // Order of the queue names is based on the priority of each queue.
 // Queue names is sorted by their priority level if strict-priority is true.
+// 不太记得的队列有优先级：哦 在server的Config配置里指定
 // If strict-priority is false, then the order of queue names are roughly based on
 // the priority level but randomized in order to avoid starving low priority queues.
 func (p *processor) queues() []string {
@@ -399,12 +403,12 @@ func (p *processor) queues() []string {
 	var names []string
 	for qname, priority := range p.queueConfig {
 		for i := 0; i < priority; i++ {
-			names = append(names, qname)
+			names = append(names, qname) // 优先级高重复次数多
 		}
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	r.Shuffle(len(names), func(i, j int) { names[i], names[j] = names[j], names[i] })
-	return uniq(names, len(p.queueConfig))
+	r.Shuffle(len(names), func(i, j int) { names[i], names[j] = names[j], names[i] }) // 洗牌
+	return uniq(names, len(p.queueConfig))                                            // 按照打乱的顺序返回去重数据
 }
 
 // perform calls the handler with the given task.
@@ -451,6 +455,7 @@ func uniq(names []string, l int) []string {
 
 // sortByPriority returns a list of queue names sorted by
 // their priority level in descending order.
+// 降序排列
 func sortByPriority(qcfg map[string]int) []string {
 	var queues []*queue
 	for qname, n := range qcfg {
@@ -476,6 +481,7 @@ func (x byPriority) Less(i, j int) bool { return x[i].priority < x[j].priority }
 func (x byPriority) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 // normalizeQueues divides priority numbers by their greatest common divisor.
+// 优先级除以他们的最大公约数：主要是 按比例降低优先级的值
 func normalizeQueues(queues map[string]int) map[string]int {
 	var xs []int
 	for _, x := range queues {
@@ -489,6 +495,7 @@ func normalizeQueues(queues map[string]int) map[string]int {
 	return res
 }
 
+// 不错：最大公约数
 func gcd(xs ...int) int {
 	fn := func(x, y int) int {
 		for y > 0 {
@@ -507,6 +514,7 @@ func gcd(xs ...int) int {
 }
 
 // computeDeadline returns the given task's deadline,
+// 返回timeout 和 deadline 中最小的时间
 func (p *processor) computeDeadline(msg *base.TaskMessage) time.Time {
 	if msg.Timeout == 0 && msg.Deadline == 0 {
 		p.logger.Errorf("asynq: internal error: both timeout and deadline are not set for the task message: %s", msg.ID)
