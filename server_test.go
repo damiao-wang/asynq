@@ -144,6 +144,8 @@ func TestServerWithRedisDown(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	srv.Stop()
+
 	time.Sleep(3 * time.Second)
 
 	srv.Shutdown()

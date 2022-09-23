@@ -96,25 +96,31 @@ type Config struct {
 	//
 	// If set to a zero or negative value, NewServer will overwrite the value
 	// to the number of CPUs usable by the current process.
+	// 指定worker数量
 	Concurrency int
 
 	// BaseContext optionally specifies a function that returns the base context for Handler invocations on this server.
 	//
 	// If BaseContext is nil, the default is context.Background().
 	// If this is defined, then it MUST return a non-nil context
+	// 提供给Handler使用
 	BaseContext func() context.Context
 
 	// Function to calculate retry delay for a failed task.
 	//
 	// By default, it uses exponential backoff algorithm to calculate the delay.
+	// 默认：指数回退算法
 	RetryDelayFunc RetryDelayFunc
 
 	// Predicate function to determine whether the error returned from Handler is a failure.
+	// 确定从Handler返回的error是否表示任务失败，可能有特殊语义的error 不判断为失败，比如not found之类的。
+	//
 	// If the function returns false, Server will not increment the retried counter for the task,
 	// and Server won't record the queue stats (processed and failed stats) to avoid skewing the error
 	// rate of the queue.
 	//
 	// By default, if the given error is non-nil the function returns true.
+	// 默认，非nil的error返回true
 	IsFailure func(error) bool
 
 	// List of queues to process with given priority value. Keys are the names of the
@@ -164,11 +170,13 @@ type Config struct {
 	//     })
 	//
 	//     ErrorHandler: asynq.ErrorHandlerFunc(reportError)
+	// 自定义对error处理的扩展
 	ErrorHandler ErrorHandler
 
 	// Logger specifies the logger used by the server instance.
 	//
 	// If unset, default logger is used.
+	// 不错 正好和lite logger对齐
 	Logger Logger
 
 	// LogLevel specifies the minimum log level to enable.
@@ -180,10 +188,12 @@ type Config struct {
 	// before forcing them to abort when stopping the server.
 	//
 	// If unset or zero, default timeout of 8 seconds is used.
+	// 强制关闭的等待时间，默认8s
 	ShutdownTimeout time.Duration
 
 	// HealthCheckFunc is called periodically with any errors encountered during ping to the
 	// connected redis server.
+	// 命名不太好，这个是处理 ping redis的错误
 	HealthCheckFunc func(error)
 
 	// HealthCheckInterval specifies the interval between healthchecks.
@@ -195,15 +205,19 @@ type Config struct {
 	// tasks, and forwarding them to 'pending' state if they are ready to be processed.
 	//
 	// If unset or zero, the interval is set to 5 seconds.
+	// 设置检查队列中'scheduled' 和 'retry'的任务，默认是5s
 	DelayedTaskCheckInterval time.Duration
 
 	// GroupGracePeriod specifies the amount of time the server will wait for an incoming task before aggregating
 	// the tasks in a group. If an incoming task is received within this period, the server will wait for another
 	// period of the same length, up to GroupMaxDelay if specified.
+	// 有点意思：如果在当前period内接收到task，那么会接着再等一个period，直到到GroupMaxDelay。
 	//
 	// If unset or zero, the grace period is set to 1 minute.
 	// Minimum duration for GroupGracePeriod is 1 second. If value specified is less than a second, the call to
 	// NewServer will panic.
+	// Group聚合task任务的等待时间，默认是1分钟。
+	// 使用Group聚合的时候参数一定要注意。
 	GroupGracePeriod time.Duration
 
 	// GroupMaxDelay specifies the maximum amount of time the server will wait for incoming tasks before aggregating
@@ -216,6 +230,7 @@ type Config struct {
 	// If GroupMaxSize is reached, the server will aggregate the tasks into one immediately.
 	//
 	// If unset or zero, no size limit is used.
+	// 最大多少个任务可以聚合为一个任务。
 	GroupMaxSize int
 
 	// GroupAggregator specifies the aggregation function used to aggregate multiple tasks in a group into one task.
