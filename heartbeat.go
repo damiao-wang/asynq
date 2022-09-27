@@ -129,10 +129,10 @@ func (h *heartbeater) start(wg *sync.WaitGroup) {
 				h.beat()
 				timer.Reset(h.interval)
 
-			case w := <-h.starting:
+			case w := <-h.starting: // worker add 正在处理中的任务
 				h.workers[w.msg.ID] = w
 
-			case msg := <-h.finished:
+			case msg := <-h.finished: // worker done
 				delete(h.workers, msg.ID)
 			}
 		}
@@ -142,7 +142,7 @@ func (h *heartbeater) start(wg *sync.WaitGroup) {
 // beat extends lease for workers and writes server/worker info to redis.
 func (h *heartbeater) beat() {
 	h.state.mu.Lock()
-	srvStatus := h.state.value.String()
+	srvStatus := h.state.value.String() // server state
 	h.state.mu.Unlock()
 
 	info := base.ServerInfo{
@@ -181,10 +181,13 @@ func (h *heartbeater) beat() {
 
 	// Note: Set TTL to be long enough so that it won't expire before we write again
 	// and short enough to expire quickly once the process is shut down or killed.
+	// 很细 internal*2
+	// 感觉跟保存快照一样 服务的 和 workers的  好奇worker
 	if err := h.broker.WriteServerState(&info, ws, h.interval*2); err != nil {
 		h.logger.Errorf("Failed to write server state data: %v", err)
 	}
 
+	// 延长worker的租期
 	for qname, ids := range idsByQueue {
 		expirationTime, err := h.broker.ExtendLease(qname, ids...)
 		if err != nil {

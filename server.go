@@ -434,7 +434,7 @@ func NewServer(r RedisConnOpt, cfg Config) *Server {
 		if err := base.ValidateQueueName(qname); err != nil {
 			continue // ignore invalid queue names
 		}
-		if p > 0 {
+		if p > 0 { // 权重 > 0
 			queues[qname] = p
 		}
 	}

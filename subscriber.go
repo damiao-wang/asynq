@@ -59,6 +59,7 @@ func (s *subscriber) start(wg *sync.WaitGroup) {
 		)
 		// Try until successfully connect to Redis.
 		for {
+			// 订阅 asynq:cancel topic，并尝试连通性
 			pubsub, err = s.broker.CancelationPubSub()
 			if err != nil {
 				s.logger.Errorf("cannot subscribe to cancelation channel: %v", err)

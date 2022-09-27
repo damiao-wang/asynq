@@ -15,6 +15,7 @@ import (
 // A janitor is responsible for deleting expired completed tasks from the specified
 // queues. It periodically checks for any expired tasks in the completed set, and
 // deletes them.
+// 周期性检查任何已过期的completed状态的任务，并删除
 type janitor struct {
 	logger *log.Logger
 	broker base.Broker
@@ -42,7 +43,7 @@ func newJanitor(params janitorParams) *janitor {
 		broker:      params.broker,
 		done:        make(chan struct{}),
 		queues:      params.queues,
-		avgInterval: params.interval,
+		avgInterval: params.interval, // 8s
 	}
 }
 

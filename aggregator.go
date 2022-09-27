@@ -15,6 +15,7 @@ import (
 
 // An aggregator is responsible for checking groups and aggregate into one task
 // if any of the grouping condition is met.
+// 检查groups 聚合到一个task里
 type aggregator struct {
 	logger *log.Logger
 	broker base.Broker
@@ -39,6 +40,7 @@ type aggregator struct {
 
 	// sema is a counting semaphore to ensure the number of active aggregating function
 	// does not exceed the limit.
+	// 限流 控制并发量
 	sema chan struct{}
 }
 
@@ -61,6 +63,7 @@ const (
 	defaultAggregationCheckInterval = 7 * time.Second
 )
 
+// newAggregator 如果groupAggregator为nil，则不会运行该特性。
 func newAggregator(params aggregatorParams) *aggregator {
 	interval := defaultAggregationCheckInterval
 	if params.gracePeriod < interval {
@@ -128,7 +131,7 @@ func (a *aggregator) exec(t time.Time) {
 }
 
 func (a *aggregator) aggregate(t time.Time) {
-	defer func() { <-a.sema /* release token */ }()
+	defer func() { <-a.sema /* release token */ }() // release
 	for _, qname := range a.queues {
 		groups, err := a.broker.ListGroups(qname)
 		if err != nil {
@@ -136,6 +139,7 @@ func (a *aggregator) aggregate(t time.Time) {
 			continue
 		}
 		for _, gname := range groups {
+			// 把满足条件的多个任务移动到aggregation set里，并返回set id
 			aggregationSetID, err := a.broker.AggregationCheck(
 				qname, gname, t, a.gracePeriod, a.maxDelay, a.maxSize)
 			if err != nil {
@@ -160,12 +164,14 @@ func (a *aggregator) aggregate(t time.Time) {
 			}
 			aggregatedTask := a.ga.Aggregate(gname, tasks)
 			ctx, cancel := context.WithDeadline(context.Background(), deadline)
+			// 重新 入队
 			if _, err := a.client.EnqueueContext(ctx, aggregatedTask, Queue(qname)); err != nil {
 				a.logger.Errorf("Failed to enqueue aggregated task (queue=%q, group=%q, setID=%q): %v",
 					qname, gname, aggregationSetID, err)
 				cancel()
 				continue
 			}
+			// 删除该聚合ID
 			if err := a.broker.DeleteAggregationSet(ctx, qname, gname, aggregationSetID); err != nil {
 				a.logger.Warnf("Failed to delete aggregation set: queue=%q, group=%q, setID=%q",
 					qname, gname, aggregationSetID)

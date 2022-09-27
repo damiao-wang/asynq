@@ -944,6 +944,7 @@ return table.getn(ids)`)
 
 // forward moves tasks with a score less than the current unix time from the delayed (i.e. scheduled | retry) zset
 // to the pending list or group set.
+// 将score小于当前时间的任务从delayed zset 移动到 pending list 或 group set
 // It returns the number of tasks moved.
 func (r *RDB) forward(delayedKey, pendingKey, taskKeyPrefix, groupKeyPrefix string) (int, error) {
 	now := r.clock.Now()
@@ -995,10 +996,10 @@ func (r *RDB) ListGroups(qname string) ([]string, error) {
 }
 
 // aggregationCheckCmd checks the given group for whether to create an aggregation set.
-// An aggregation set is created if one of the aggregation criteria is met:
+// An aggregation set is created if one of the aggregation criteria[标准、条件] is met:
 // 1) group has reached or exceeded its max size
-// 2) group's oldest task has reached or exceeded its max delay
-// 3) group's latest task has reached or exceeded its grace period
+// 2) group's oldest task has reached or exceeded its max delay  // 最早的任务超过 max delay
+// 3) group's latest task has reached or exceeded its grace period // 最新的任务超过 grace period 说明一直再没有新任务进来
 // if aggreation criteria is met, the command moves those tasks from the group
 // and put them in an aggregation set. Additionally, if the creation of aggregation set
 // empties the group, it will clear the group name from the all groups set.
@@ -1085,9 +1086,11 @@ const aggregationTimeout = 2 * time.Minute
 // group are ready to be aggregated. If so, it moves the tasks to be aggregated to a aggregation set and returns
 // the set ID. If not, it returns an empty string for the set ID.
 // The time for gracePeriod and maxDelay is computed relative to the time t.
+// 把满足条件的多个任务移动到成一个aggregation set，并返回set id
 //
 // Note: It assumes that this function is called at frequency less than or equal to the gracePeriod. In other words,
 // the function only checks the most recently added task aganist the given gracePeriod.
+// 该func只根据给定的period检查最近添加的任务。
 func (r *RDB) AggregationCheck(qname, gname string, t time.Time, gracePeriod, maxDelay time.Duration, maxSize int) (string, error) {
 	var op errors.Op = "RDB.AggregationCheck"
 	aggregationSetID := uuid.NewString()
@@ -1145,6 +1148,7 @@ func (r *RDB) ReadAggregationSet(qname, gname, setID string) ([]*base.TaskMessag
 	var op errors.Op = "RDB.ReadAggregationSet"
 	ctx := context.Background()
 	aggSetKey := base.AggregationSetKey(qname, gname, setID)
+	// 获取聚合所有任务的msgs列表
 	res, err := readAggregationSetCmd.Run(ctx, r.client,
 		[]string{aggSetKey}, base.TaskKeyPrefix(qname)).Result()
 	if err != nil {
@@ -1162,6 +1166,7 @@ func (r *RDB) ReadAggregationSet(qname, gname, setID string) ([]*base.TaskMessag
 		}
 		msgs = append(msgs, msg)
 	}
+	// 返回聚合ID的score->deadline
 	deadlineUnix, err := r.client.ZScore(ctx, base.AllAggregationSets(qname), aggSetKey).Result()
 	if err != nil {
 		return nil, time.Time{}, errors.E(op, errors.Unknown, &errors.RedisCommandError{Command: "zscore", Err: err})

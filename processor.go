@@ -192,11 +192,12 @@ func (p *processor) exec() {
 
 		lease := base.NewLease(leaseExpirationTime)
 		deadline := p.computeDeadline(msg)
-		p.starting <- &workerInfo{msg, time.Now(), deadline, lease}
+		p.starting <- &workerInfo{msg, time.Now(), deadline, lease} // 发送给 heartbeater goroutine
+		// 它这个worker概念不同于 常规意义上的worker，这里是一个task 创建一个goroutine
 		go func() {
 			defer func() {
 				p.finished <- msg
-				<-p.sema // release token
+				<-p.sema // release token 控制并发
 			}()
 
 			ctx, cancel := asynqcontext.New(p.baseCtxFn(), msg, deadline)
@@ -216,6 +217,7 @@ func (p *processor) exec() {
 			}
 
 			resCh := make(chan error, 1)
+			// 异步调用
 			go func() {
 				task := newTask(
 					msg.Type,
@@ -227,13 +229,14 @@ func (p *processor) exec() {
 						ctx:    ctx,
 					},
 				)
-				resCh <- p.perform(ctx, task)
+				resCh <- p.perform(ctx, task) // run task
 			}()
 
 			select {
 			case <-p.abort:
 				// time is up, push the message back to queue and quit this worker goroutine.
 				p.logger.Warnf("Quitting worker. task id=%s", msg.ID)
+				// 重新入队 pending 队列
 				p.requeue(lease, msg)
 				return
 			case <-lease.Done():
@@ -276,6 +279,7 @@ func (p *processor) handleSucceededMessage(l *base.Lease, msg *base.TaskMessage)
 	}
 }
 
+// 任务状态改为completed
 func (p *processor) markAsComplete(l *base.Lease, msg *base.TaskMessage) {
 	if !l.IsValid() {
 		// If lease is not valid, do not write to redis; Let recoverer take care of it.
@@ -297,6 +301,7 @@ func (p *processor) markAsComplete(l *base.Lease, msg *base.TaskMessage) {
 	}
 }
 
+// 记录统计、并删除任务
 func (p *processor) markAsDone(l *base.Lease, msg *base.TaskMessage) {
 	if !l.IsValid() {
 		// If lease is not valid, do not write to redis; Let recoverer take care of it.

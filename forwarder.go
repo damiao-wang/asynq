@@ -14,6 +14,7 @@ import (
 
 // A forwarder is responsible for moving scheduled and retry tasks to pending state
 // so that the tasks get processed by the workers.
+// 任务从 scheduled/retry --> pending，从而让任务能够被执行
 type forwarder struct {
 	logger *log.Logger
 	broker base.Broker

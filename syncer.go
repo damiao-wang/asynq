@@ -13,6 +13,7 @@ import (
 
 // syncer is responsible for queuing up failed requests to redis and retry
 // those requests to sync state between the background process and redis.
+// Syncer负责排队失败的请求redis，并重试这些请求在后台进程和redis之间同步状态
 type syncer struct {
 	logger *log.Logger
 
@@ -42,7 +43,7 @@ func newSyncer(params syncerParams) *syncer {
 		logger:     params.logger,
 		requestsCh: params.requestsCh,
 		done:       make(chan struct{}),
-		interval:   params.interval,
+		interval:   params.interval, // 5s
 	}
 }
 

@@ -86,6 +86,7 @@ func (r *recoverer) recover() {
 	r.recoverStaleAggregationSets()
 }
 
+// retry or archive。archive数据有expire时间，所以后面也会被清理。
 func (r *recoverer) recoverLeaseExpiredTasks() {
 	// Get all tasks which have expired 30 seconds ago or earlier to accomodate certain amount of clock skew.
 	cutoff := time.Now().Add(-30 * time.Second)
